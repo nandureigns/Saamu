@@ -255,11 +255,11 @@ Nᴀᴍᴇ - {}"""
 
     CAPTION = """<b>{file_name}</b>
 
-🎬 <b>Kannada Movie Search Bot</b> – <a href="https://t.me/KnSearchBoT">@KnSearchBoT</a>  
+🎬 <b>Kannada Movie Search Bot</b> – <a href="https://t.me/Kn_MovieSearch_BoT">@Kn_MovieSearch_BoT</a>  
 🌐 <b>All Language Movies Bot</b> – <a href="https://t.me/KnMoviezX_BoT">@KnMoviezX_BoT</a>  
 
 📢 <b>Join Our Main Channel</b>  
-<a href="https://t.me/KnMoviez">🔗 Click Here</a>
+<a href="https://t.me/KnMoviez">https://t.me/KnMoviez</a>
 """
 
     IMDB_TEMPLATE_TXT = """
