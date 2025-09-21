@@ -9,7 +9,7 @@ class Database:
         self.db = self._client[database_name]
         self.col = self.db.users
         self.grp = self.db.groups
-        
+        self.mft = self.db.mft
         
 
 
