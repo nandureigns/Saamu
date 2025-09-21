@@ -14,9 +14,36 @@ from database.connections_mdb import active_connection
 import re
 import json
 import base64
+from datetime import datetime 
+
 logger = logging.getLogger(__name__)
 
 BATCH_FILES = {}
+
+from datetime import datetime
+
+async def check_mft(user_id, message):
+    today = datetime.now().strftime("%Y-%m-%d")
+    # find document
+    doc = await db.self.mft.find_one({"user_id": user_id, "date": today})
+    count = doc.get("count", 0) if doc else 0
+
+    if count >= 20:
+        await message.reply_text(
+            "⚠️ You have reached today’s limit of 20 files.\n\nPlease try again tomorrow ✅"
+        )
+        return False
+    return True
+
+
+async def update_mft(user_id):
+    today = datetime.now().strftime("%Y-%m-%d")
+    # increment count by 1, create document if missing
+    await db.self.mft.update_one(
+        {"user_id": user_id, "date": today},
+        {"$inc": {"count": 1}},
+        upsert=True
+    )
 
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start(client, message):
@@ -228,32 +255,34 @@ async def start(client, message):
     if not files_:
         pre, file_id = ((base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))).decode("ascii")).split("_", 1)
         try:
-            msg = await client.send_cached_media(
-                chat_id=message.from_user.id,
-                file_id=file_id,
-                protect_content=True if pre == 'filep' else False,
-                )
-            k = await message.reply_text("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>10 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
-            await asyncio.sleep(600)
-            await msg.delete()
-            GET = [[InlineKeyboardButton("✅ ɢᴇᴛ ғɪʟᴇ ᴀɢᴀɪɴ ✅", callback_data=f'del#{file_id}')]]
-            await k.edit("<b>Your File/Video is successfully deleted!!!</b>" ,reply_markup=InlineKeyboardMarkup(GET))
-            return
-            filetype = msg.media
-            file = getattr(msg, filetype)
-            title = file.file_name
-            size=get_size(file.file_size)
-            f_caption = f"<code>{title}</code>"
-            if CUSTOM_FILE_CAPTION:
-                try:
-                    f_caption=CUSTOM_FILE_CAPTION.format(file_name= '' if title is None else title, file_size='' if size is None else size, file_caption='')
-                except:
-                    return
-            await msg.edit_caption(f_caption)
-            return
-        except:
-            pass
-        return await message.reply('No such file exist.')
+            mft = await check_mft(message.from_user.id) 
+            if mft:
+                msg = await client.send_cached_media(
+                    chat_id=message.from_user.id,
+                    file_id=file_id,
+                    protect_content=True if pre == 'filep' else False,
+                await update_mft(message.from_user.id)  
+                k = await message.reply_text("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>10 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
+                await asyncio.sleep(600)
+                await msg.delete()
+                GET = [[InlineKeyboardButton("✅ ɢᴇᴛ ғɪʟᴇ ᴀɢᴀɪɴ ✅", callback_data=f'del#{file_id}')]]
+                await k.edit("<b>Your File/Video is successfully deleted!!!</b>" ,reply_markup=InlineKeyboardMarkup(GET))
+                return
+                filetype = msg.media
+                file = getattr(msg, filetype)
+                title = file.file_name
+                size=get_size(file.file_size)
+                f_caption = f"<code>{title}</code>"
+                if CUSTOM_FILE_CAPTION:
+                    try:
+                        qf_caption=CUSTOM_FILE_CAPTION.format(file_name= '' if title is None else title, file_size='' if size is None else size, file_caption='')
+                    except:
+                        return
+                await msg.edit_caption(f_caption)
+                return
+            except:
+                pass
+                return await message.reply('No such file exist.')
     files = files_[0]
     title = files.file_name
     size=get_size(files.file_size)
@@ -266,7 +295,9 @@ async def start(client, message):
             f_caption=f_caption
     if f_caption is None:
         f_caption = f"{files.file_name}"    
-    m=await client.send_cached_media(
+    mft = await check_mft(message.from_user.id) 
+    if mft:
+        m=await client.send_cached_media(
         chat_id=message.from_user.id,
         file_id=file_id,
         caption=f_caption,
@@ -278,14 +309,14 @@ async def start(client, message):
                     ]
                     ]
     ))
+await update_mft(message.from_user.id) 
     k = await message.reply_text("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>30 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
     await asyncio.sleep(1800)
     await m.delete()
     GET = [[InlineKeyboardButton("✅ ɢᴇᴛ ғɪʟᴇ ᴀɢᴀɪɴ ✅", callback_data=f'del#{file_id}')]]
     await k.edit("<b>Your File/Video is successfully deleted!!!</b>" ,reply_markup=InlineKeyboardMarkup(GET))
     return
-   
-                    
+
 
 @Client.on_message(filters.command('channel') & filters.user(ADMINS))
 async def channel_info(bot, message):
