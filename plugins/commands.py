@@ -317,6 +317,9 @@ async def start(client, message):
             await m.delete()
             GET = [[InlineKeyboardButton("✅ ɢᴇᴛ ғɪʟᴇ ᴀɢᴀɪɴ ✅", callback_data=f'del#{file_id}')]]
             await k.edit("<b>Your File/Video is successfully deleted!!!</b>" ,reply_markup=InlineKeyboardMarkup(GET))
+    except Exception as e:
+        await message.reply(str(e))
+
             return
 
 
