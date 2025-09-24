@@ -7,7 +7,7 @@ from pyrogram import Client, filters, enums
 from pyrogram.errors import ChatAdminRequired, FloodWait
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from database.ia_filterdb import Media, Media2, get_file_details, unpack_new_file_id
-from database.users_chats_db import db
+from database.users_chats_db import *
 from info import *
 from utils import get_settings, get_size, is_subscribed, save_group_settings, temp, verify_user, check_token, check_verification, get_token, send_all
 from database.connections_mdb import active_connection
@@ -25,7 +25,7 @@ from datetime import datetime
 async def check_mft(user_id, message):
     today = datetime.now().strftime("%Y-%m-%d")
     # find document
-    doc = await db.self.mft.find_one({"user_id": user_id, "date": today})
+    doc = await self.mft.find_one({"user_id": user_id, "date": today})
     count = doc.get("count", 0) if doc else 0
 
     if count >= 20:
@@ -39,7 +39,7 @@ async def check_mft(user_id, message):
 async def update_mft(user_id):
     today = datetime.now().strftime("%Y-%m-%d")
     # increment count by 1, create document if missing
-    await db.self.mft.update_one(
+    await self.mft.update_one(
         {"user_id": user_id, "date": today},
         {"$inc": {"count": 1}},
         upsert=True
