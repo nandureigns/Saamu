@@ -21,293 +21,462 @@ logger = logging.getLogger(__name__)
 BATCH_FILES = {}
 
 from datetime import datetime
+import asyncio
+import json
+import os
+import base64
+import random
+import logging
+
+# Assuming these imports exist in your project
+# from pyrogram import Client, filters, enums
+# from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+# from pyrogram.errors import FloodWait
+
+logger = logging.getLogger(__name__)
 
 async def check_mft(user_id, message):
-    today = datetime.now().strftime("%Y-%m-%d")
-    # find document
-    doc = await self.mft.find_one({"user_id": user_id, "date": today})
-    count = doc.get("count", 0) if doc else 0
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        # find document
+        doc = await self.mft.find_one({"user_id": user_id, "date": today})
+        count = doc.get("count", 0) if doc else 0
 
-    if count >= 20:
-        await message.reply_text(
-            "⚠️ You have reached today's limit of 20 files.\n\nPlease try again tomorrow ✅"
-        )
-        return False
-    return True
+        if count >= 20:
+            await message.reply_text(
+                "⚠️ You have reached today's limit of 20 files.\n\nPlease try again tomorrow ✅"
+            )
+            return False
+        return True
+    except Exception as e:
+        logger.error(f"Error in check_mft for user {user_id}: {e}")
+        # Return True to allow access if there's a database error (graceful degradation)
+        return True
 
 
 async def update_mft(user_id):
-    today = datetime.now().strftime("%Y-%m-%d")
-    # increment count by 1, create document if missing
-    await self.mft.update_one(
-        {"user_id": user_id, "date": today},
-        {"$inc": {"count": 1}},
-        upsert=True
-    )
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        # increment count by 1, create document if missing
+        await self.mft.update_one(
+            {"user_id": user_id, "date": today},
+            {"$inc": {"count": 1}},
+            upsert=True
+        )
+    except Exception as e:
+        logger.error(f"Error updating MFT for user {user_id}: {e}")
+        # Don't raise the error, just log it since this is a counter update
+
 
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start(client, message):
-    if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
-        buttons = [[
-        InlineKeyboardButton("✨ 𝗔𝗱𝗱 𝗠𝗲 𝗧𝗼 𝗬𝗼𝘂𝗿 𝗚𝗿𝗼𝘂𝗽 ✨", url=f"https://t.me/{temp.U_NAME}?startgroup=true"),
-        ],[
-        InlineKeyboardButton("🔍 𝗦𝗲𝗮𝗿𝗰𝗵 𝗛𝗲𝗿𝗲", switch_inline_query_current_chat=''),
-        InlineKeyboardButton("📖 𝗛𝗲𝗹𝗽", callback_data="help"),
-        ],[
-        InlineKeyboardButton("🌟 𝗔𝗯𝗼𝘂𝘁 𝗠𝗲", callback_data="about"),
-        InlineKeyboardButton("❤️ 𝗦𝘂𝗽𝗽𝗼𝗿𝘁 / 𝗗𝗼𝗻𝗮𝘁𝗲", callback_data="donate"),
-        ]]
-        reply_markup = InlineKeyboardMarkup(buttons)
-        await message.reply_photo(
-            photo=random.choice(PICS),
-            caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
-            reply_markup=reply_markup,
-            parse_mode=enums.ParseMode.HTML
-        )
-        if not await db.get_chat(message.chat.id):
-            total=await client.get_chat_members_count(message.chat.id)
-            await client.send_message(LOG_CHANNEL, script.LOG_TEXT_G.format(message.chat.title, message.chat.id, total, "Unknown"))       
-            await db.add_chat(message.chat.id, message.chat.title)
-        return 
-    if not await db.is_user_exist(message.from_user.id):
-        await db.add_user(message.from_user.id, message.from_user.first_name)
-        await client.send_message(LOG_CHANNEL, script.LOG_TEXT_P.format(message.from_user.id, message.from_user.mention))
-    if len(message.command) != 2:
-        buttons = [[
-        InlineKeyboardButton("✨ 𝗔𝗱𝗱 𝗠𝗲 𝗧𝗼 𝗬𝗼𝘂𝗿 𝗚𝗿𝗼𝘂𝗽 ✨", url=f"https://t.me/{temp.U_NAME}?startgroup=true"),
-        ],[
-        InlineKeyboardButton("🔍 𝗦𝗲𝗮𝗿𝗰𝗵 𝗛𝗲𝗿𝗲", switch_inline_query_current_chat=''),
-        InlineKeyboardButton("📖 𝗛𝗲𝗹𝗽", callback_data="help"),
-        ],[
-        InlineKeyboardButton("🌟 𝗔𝗯𝗼𝘂𝘁 𝗠𝗲", callback_data="about"),
-        InlineKeyboardButton("❤️ 𝗦𝘂𝗽𝗽𝗼𝗿𝘁 / 𝗗𝗼𝗻𝗮𝘁𝗲", callback_data="donate"),
-        ]]
-        reply_markup = InlineKeyboardMarkup(buttons)
-        await message.reply_photo(
-            photo=random.choice(PICS),
-            caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
-            reply_markup=reply_markup,
-            parse_mode=enums.ParseMode.HTML
-        )
-        return
-
-    invite_links = await is_subscribed(client, query=message)
-    if AUTH_CHANNEL and len(invite_links) >= 1:
-        btn = []
-        for chnl_num, link in enumerate(invite_links, start=1):
-            if chnl_num == 1:
-                channel_num = "1sᴛ"
-            elif chnl_num == 2:
-                channel_num = "2ɴᴅ"
-            elif chnl_num == 3:
-                channel_num = "3ʀᴅ"
-            else:
-                channel_num = str(chnl_num)+"ᴛʜ"
-            btn.append([
-                InlineKeyboardButton(f"❆ Jᴏɪɴ Cʜᴀɴɴᴇʟ {channel_num} ❆", url=link)
-            ])
-
-        if message.command[1] != "subscribe":
-            try:
-                kk, file_id = message.command[1].split("_", 1)
-                pre = 'checksubp' if kk == 'filep' else 'checksub' 
-                btn.append([InlineKeyboardButton("↻ Tʀʏ Aɢᴀɪɴ", callback_data=f"{pre}#{file_id}")])
-            except (IndexError, ValueError):
-                btn.append([InlineKeyboardButton("↻ Tʀʏ Aɢᴀɪɴ", url=f"https://t.me/{temp.U_NAME}?start={message.command[1]}")])
-        await client.send_message(
-            chat_id=message.from_user.id,
-            text="**Yᴏᴜ ᴀʀᴇ ɴᴏᴛ ɪɴ ᴏᴜʀ Bᴀᴄᴋ-ᴜᴘ ᴄʜᴀɴɴᴇʟs ɢɪᴠᴇɴ ʙᴇʟᴏᴡ sᴏ ʏᴏᴜ ᴅᴏɴ'ᴛ ɢᴇᴛ ᴛʜᴇ ᴍᴏᴠɪᴇ ғɪʟᴇ...\n\nIғ ʏᴏᴜ ᴡᴀɴᴛ ᴛʜᴇ ᴍᴏᴠɪᴇ ғɪʟᴇ, ᴄʟɪᴄᴋ ᴏɴ ᴛʜᴇ ɢɪᴠᴇɴ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴀɴᴅ ᴊᴏɪɴ ᴏᴜʀ ʙᴀᴄᴋ-ᴜᴘ ᴄʜᴀɴɴᴇʟs, ᴛʜᴇɴ ᴄʟɪᴄᴋ ᴏɴ ᴛʜᴇ '↻ Tʀʏ Aɢᴀɪɴ' ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ...\n\nTʜᴇɴ ʏᴏᴜ ᴡɪʟʟ ɢᴇᴛ ᴛʜᴇ ᴍᴏᴠɪᴇ ғɪʟᴇs...**",
-            reply_markup=InlineKeyboardMarkup(btn),
-            parse_mode=enums.ParseMode.MARKDOWN
-            )
-        return
-    if len(message.command) == 2 and message.command[1] in ["subscribe", "error", "okay", "help"]:
-        buttons = [[
-        InlineKeyboardButton("✨ 𝗔𝗱𝗱 𝗠𝗲 𝗧𝗼 𝗬𝗼𝘂𝗿 𝗚𝗿𝗼𝘂𝗽 ✨", url=f"https://t.me/{temp.U_NAME}?startgroup=true"),
-        ],[
-        InlineKeyboardButton("🔍 𝗦𝗲𝗮𝗿𝗰𝗵 𝗛𝗲𝗿𝗲", switch_inline_query_current_chat=''),
-        InlineKeyboardButton("📖 𝗛𝗲𝗹𝗽", callback_data="help"),
-        ],[
-        InlineKeyboardButton("🌟 𝗔𝗯𝗼𝘂𝘁 𝗠𝗲", callback_data="about"),
-        InlineKeyboardButton("❤️ 𝗦𝘂𝗽𝗽𝗼𝗿𝘁 / 𝗗𝗼𝗻𝗮𝘁𝗲", callback_data="donate"),
-        ]]
-        reply_markup = InlineKeyboardMarkup(buttons)
-        await message.reply_photo(
-            photo=random.choice(PICS),
-            caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
-            reply_markup=reply_markup,
-            parse_mode=enums.ParseMode.HTML
-        )
-        return
-    data = message.command[1]
     try:
-        pre, file_id = data.split('_', 1)
-    except:
-        file_id = data
-        pre = ""
-    if data.split("-", 1)[0] == "BATCH":
-        sts = await message.reply("Please wait")
-        file_id = data.split("-", 1)[1]
-        msgs = BATCH_FILES.get(file_id)
-        if not msgs:
-            file = await client.download_media(file_id)
-            try: 
-                with open(file) as file_data:
-                    msgs=json.loads(file_data.read())
-            except:
-                await sts.edit("FAILED")
-                return await client.send_message(LOG_CHANNEL, "UNABLE TO OPEN FILE.")
-            os.remove(file)
-            BATCH_FILES[file_id] = msgs
-        for msg in msgs:
-            title = msg.get("title")
-            size=get_size(int(msg.get("size", 0)))
-            f_caption=msg.get("caption", "")
-            if BATCH_FILE_CAPTION:
-                try:
-                    f_caption=BATCH_FILE_CAPTION.format(file_name= '' if title is None else title, file_size='' if size is None else size, file_caption='' if f_caption is None else f_caption)
-                except Exception as e:
-                    logger.exception(e)
-                    f_caption=f_caption
-            if f_caption is None:
-                f_caption = f"{title}"
+        # Handle group/supergroup messages
+        if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
             try:
-                m = await client.send_cached_media(
-                    chat_id=message.from_user.id,
-                    file_id=msg.get("file_id"),
-                    caption=f_caption,
-                    protect_content=msg.get('protect', False),
-                    )
-                k = await message.reply_text("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>30 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
-                await asyncio.sleep(1800)
-                await m.delete()
-                GET = [[InlineKeyboardButton("✅ ɢᴇᴛ ғɪʟᴇ ᴀɢᴀɪɴ ✅", callback_data=f'del#{file_id}')]]
-                await k.edit("<b>Your File/Video is successfully deleted!!!</b>" ,reply_markup=InlineKeyboardMarkup(GET))
+                buttons = [[
+                InlineKeyboardButton("✨ 𝗔𝗱𝗱 𝗠𝗲 𝗧𝗼 𝗬𝗼𝘂𝗿 𝗚𝗿𝗼𝘂𝗽 ✨", url=f"https://t.me/{temp.U_NAME}?startgroup=true"),
+                ],[
+                InlineKeyboardButton("🔍 𝗦𝗲𝗮𝗿𝗰𝗵 𝗛𝗲𝗿𝗲", switch_inline_query_current_chat=''),
+                InlineKeyboardButton("📖 𝗛𝗲𝗹𝗽", callback_data="help"),
+                ],[
+                InlineKeyboardButton("🌟 𝗔𝗯𝗼𝘂𝘁 𝗠𝗲", callback_data="about"),
+                InlineKeyboardButton("❤️ 𝗦𝘂𝗽𝗽𝗼𝗿𝘁 / 𝗗𝗼𝗻𝗮𝘁𝗲", callback_data="donate"),
+                ]]
+                reply_markup = InlineKeyboardMarkup(buttons)
+                await message.reply_photo(
+                    photo=random.choice(PICS),
+                    caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
+                    reply_markup=reply_markup,
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                # Check if chat exists in database
+                try:
+                    if not await db.get_chat(message.chat.id):
+                        total = await client.get_chat_members_count(message.chat.id)
+                        await client.send_message(LOG_CHANNEL, script.LOG_TEXT_G.format(message.chat.title, message.chat.id, total, "Unknown"))       
+                        await db.add_chat(message.chat.id, message.chat.title)
+                except Exception as e:
+                    logger.error(f"Error handling chat database operations: {e}")
+                    
+                return 
+            except Exception as e:
+                logger.error(f"Error handling group message: {e}")
                 return
-            except FloodWait as e:
-                await asyncio.sleep(e.x)
-                logger.warning(f"Floodwait of {e.x} sec.")
-                m = await client.send_cached_media(
-                    chat_id=message.from_user.id,
-                    file_id=msg.get("file_id"),
-                    caption=f_caption,
-                    protect_content=msg.get('protect', False),
-                    )
-                k = await message.reply_text("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>30 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
-                await asyncio.sleep(1800)
-                await m.delete()
-                GET = [[InlineKeyboardButton("✅ ɢᴇᴛ ғɪʟᴇ ᴀɢᴀɪɴ ✅", callback_data=f'del#{file_id}')]]
-                await k.edit("<b>Your File/Video is successfully deleted!!!</b>" ,reply_markup=InlineKeyboardMarkup(GET))
+
+        # Handle private messages - check if user exists
+        try:
+            if not await db.is_user_exist(message.from_user.id):
+                await db.add_user(message.from_user.id, message.from_user.first_name)
+                await client.send_message(LOG_CHANNEL, script.LOG_TEXT_P.format(message.from_user.id, message.from_user.mention))
+        except Exception as e:
+            logger.error(f"Error handling user database operations: {e}")
+
+        # Handle start command without parameters
+        if len(message.command) != 2:
+            try:
+                buttons = [[
+                InlineKeyboardButton("✨ 𝗔𝗱𝗱 𝗠𝗲 𝗧𝗼 𝗬𝗼𝘂𝗿 𝗚𝗿𝗼𝘂𝗽 ✨", url=f"https://t.me/{temp.U_NAME}?startgroup=true"),
+                ],[
+                InlineKeyboardButton("🔍 𝗦𝗲𝗮𝗿𝗰𝗵 𝗛𝗲𝗿𝗲", switch_inline_query_current_chat=''),
+                InlineKeyboardButton("📖 𝗛𝗲𝗹𝗽", callback_data="help"),
+                ],[
+                InlineKeyboardButton("🌟 𝗔𝗯𝗼𝘂𝘁 𝗠𝗲", callback_data="about"),
+                InlineKeyboardButton("❤️ 𝗦𝘂𝗽𝗽𝗼𝗿𝘁 / 𝗗𝗼𝗻𝗮𝘁𝗲", callback_data="donate"),
+                ]]
+                reply_markup = InlineKeyboardMarkup(buttons)
+                await message.reply_photo(
+                    photo=random.choice(PICS),
+                    caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
+                    reply_markup=reply_markup,
+                    parse_mode=enums.ParseMode.HTML
+                )
                 return
             except Exception as e:
-                logger.warning(e, exc_info=True)
-                continue
-            await asyncio.sleep(1) 
-        await sts.delete()
-        return
-    elif data.split("-", 1)[0] == "DSTORE":
-        sts = await message.reply("Please wait")
-        b_string = data.split("-", 1)[1]
-        decoded = (base64.urlsafe_b64decode(b_string + "=" * (-len(b_string) % 4))).decode("ascii")
-        try:
-            f_msg_id, l_msg_id, f_chat_id, protect = decoded.split("_", 3)
-        except:
-            f_msg_id, l_msg_id, f_chat_id = decoded.split("_", 2)
-            protect = "/pbatch" if PROTECT_CONTENT else "batch"
-        diff = int(l_msg_id) - int(f_msg_id)
-        async for msg in client.iter_messages(int(f_chat_id), int(l_msg_id), int(f_msg_id)):
-            if msg.media:
-                media = getattr(msg, msg.media)
-                if BATCH_FILE_CAPTION:
-                    try:
-                        f_caption=BATCH_FILE_CAPTION.format(file_name=getattr(media, 'file_name', ''), file_size=getattr(media, 'file_size', ''), file_caption=getattr(msg, 'caption', ''))
-                    except Exception as e:
-                        logger.exception(e)
-                        f_caption = getattr(msg, 'caption', '')
-                else:
-                    media = getattr(msg, msg.media)
-                    file_name = getattr(media, 'file_name', '')
-                    f_caption = getattr(msg, 'caption', file_name)
-                try:
-                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False)
-                except FloodWait as e:
-                    await asyncio.sleep(e.x)
-                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False)
-                except Exception as e:
-                    logger.exception(e)
-                    continue
-            elif msg.empty:
-                continue
-            else:
-                try:
-                    await msg.copy(message.chat.id, protect_content=True if protect == "/pbatch" else False)
-                except FloodWait as e:
-                    await asyncio.sleep(e.x)
-                    await msg.copy(message.chat.id, protect_content=True if protect == "/pbatch" else False)
-                except Exception as e:
-                    logger.exception(e)
-                    continue
-            await asyncio.sleep(1) 
-        return await sts.delete()
-        
-    # Check MFT limit first before processing any files
-    mft_check = await check_mft(message.from_user.id, message)
-    if not mft_check:
-        return
+                logger.error(f"Error sending start message: {e}")
+                await message.reply_text("Sorry, an error occurred while processing your request.")
+                return
 
-    files_ = await get_file_details(file_id)           
-    if not files_:
-        pre, file_id = ((base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))).decode("ascii")).split("_", 1)
+        # Check subscription status
         try:
-            msg = await client.send_cached_media(
-                chat_id=message.from_user.id,
-                file_id=file_id,
-                protect_content=True if pre == 'filep' else False,
-            )
-            await update_mft(message.from_user.id)
-            k = await message.reply_text("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>10 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
-            await asyncio.sleep(600)
-            await msg.delete()
-            GET = [[InlineKeyboardButton("✅ ɢᴇᴛ ғɪʟᴇ ᴀɢᴀɪɴ ✅", callback_data=f'del#{file_id}')]]
-            await k.edit("<b>Your File/Video is successfully deleted!!!</b>" ,reply_markup=InlineKeyboardMarkup(GET))
-            return
+            invite_links = await is_subscribed(client, query=message)
+            if AUTH_CHANNEL and len(invite_links) >= 1:
+                btn = []
+                for chnl_num, link in enumerate(invite_links, start=1):
+                    if chnl_num == 1:
+                        channel_num = "1sᴛ"
+                    elif chnl_num == 2:
+                        channel_num = "2ɴᴅ"
+                    elif chnl_num == 3:
+                        channel_num = "3ʀᴅ"
+                    else:
+                        channel_num = str(chnl_num)+"ᴛʜ"
+                    btn.append([
+                        InlineKeyboardButton(f"❆ Jᴏɪɴ Cʜᴀɴɴᴇʟ {channel_num} ❆", url=link)
+                    ])
+
+                if message.command[1] != "subscribe":
+                    try:
+                        kk, file_id = message.command[1].split("_", 1)
+                        pre = 'checksubp' if kk == 'filep' else 'checksub' 
+                        btn.append([InlineKeyboardButton("↻ Tʀʏ Aɢᴀɪɴ", callback_data=f"{pre}#{file_id}")])
+                    except (IndexError, ValueError):
+                        btn.append([InlineKeyboardButton("↻ Tʀʏ Aɢᴀɪɴ", url=f"https://t.me/{temp.U_NAME}?start={message.command[1]}")])
+                
+                await client.send_message(
+                    chat_id=message.from_user.id,
+                    text="**Yᴏᴜ ᴀʀᴇ ɴᴏᴛ ɪɴ ᴏᴜʀ Bᴀᴄᴋ-ᴜᴘ ᴄʜᴀɴɴᴇʟs ɢɪᴠᴇɴ ʙᴇʟᴏᴡ sᴏ ʏᴏᴜ ᴅᴏɴ'ᴛ ɢᴇᴛ ᴛʜᴇ ᴍᴏᴠɪᴇ ғɪʟᴇ...\n\nIғ ʏᴏᴜ ᴡᴀɴᴛ ᴛʜᴇ ᴍᴏᴠɪᴇ ғɪʟᴇ, ᴄʟɪᴄᴋ ᴏɴ ᴛʜᴇ ɢɪᴠᴇɴ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴀɴᴅ ᴊᴏɪɴ ᴏᴜʀ ʙᴀᴄᴋ-ᴜᴘ ᴄʜᴀɴɴᴇʟs, ᴛʜᴇɴ ᴄʟɪᴄᴋ ᴏɴ ᴛʜᴇ '↻ Tʀʏ Aɢᴀɪɴ' ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ...\n\nTʜᴇɴ ʏᴏᴜ ᴡɪʟʟ ɢᴇᴛ ᴛʜᴇ ᴍᴏᴠɪᴇ ғɪʟᴇs...**",
+                    reply_markup=InlineKeyboardMarkup(btn),
+                    parse_mode=enums.ParseMode.MARKDOWN
+                )
+                return
         except Exception as e:
-            return await message.reply('No such file exist.')
-    
-    files = files_[0]
-    title = files.file_name
-    size=get_size(files.file_size)
-    f_caption=files.caption
-    if CUSTOM_FILE_CAPTION:
+            logger.error(f"Error checking subscription status: {e}")
+
+        # Handle special commands
+        if len(message.command) == 2 and message.command[1] in ["subscribe", "error", "okay", "help"]:
+            try:
+                buttons = [[
+                InlineKeyboardButton("✨ 𝗔𝗱𝗱 𝗠𝗲 𝗧𝗼 𝗬𝗼𝘂𝗿 𝗚𝗿𝗼𝘂𝗽 ✨", url=f"https://t.me/{temp.U_NAME}?startgroup=true"),
+                ],[
+                InlineKeyboardButton("🔍 𝗦𝗲𝗮𝗿𝗰𝗵 𝗛𝗲𝗿𝗲", switch_inline_query_current_chat=''),
+                InlineKeyboardButton("📖 𝗛𝗲𝗹𝗽", callback_data="help"),
+                ],[
+                InlineKeyboardButton("🌟 𝗔𝗯𝗼𝘂𝘁 𝗠𝗲", callback_data="about"),
+                InlineKeyboardButton("❤️ 𝗦𝘂𝗽𝗽𝗼𝗿𝘁 / 𝗗𝗼𝗻𝗮𝘁𝗲", callback_data="donate"),
+                ]]
+                reply_markup = InlineKeyboardMarkup(buttons)
+                await message.reply_photo(
+                    photo=random.choice(PICS),
+                    caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
+                    reply_markup=reply_markup,
+                    parse_mode=enums.ParseMode.HTML
+                )
+                return
+            except Exception as e:
+                logger.error(f"Error handling special commands: {e}")
+                await message.reply_text("Sorry, an error occurred while processing your request.")
+                return
+
+        data = message.command[1]
         try:
-            f_caption=CUSTOM_FILE_CAPTION.format(file_name= '' if title is None else title, file_size='' if size is None else size, file_caption='' if f_caption is None else f_caption)
+            pre, file_id = data.split('_', 1)
+        except ValueError:
+            file_id = data
+            pre = ""
+
+        # Handle BATCH requests
+        if data.split("-", 1)[0] == "BATCH":
+            try:
+                sts = await message.reply("Please wait")
+                file_id = data.split("-", 1)[1]
+                msgs = BATCH_FILES.get(file_id)
+                
+                if not msgs:
+                    try:
+                        file = await client.download_media(file_id)
+                        try: 
+                            with open(file) as file_data:
+                                msgs = json.loads(file_data.read())
+                        except json.JSONDecodeError:
+                            await sts.edit("FAILED - Invalid JSON file")
+                            return
+                        except FileNotFoundError:
+                            await sts.edit("FAILED - File not found")
+                            return
+                        finally:
+                            if os.path.exists(file):
+                                os.remove(file)
+                        BATCH_FILES[file_id] = msgs
+                    except Exception as e:
+                        await sts.edit("FAILED")
+                        await client.send_message(LOG_CHANNEL, f"UNABLE TO OPEN FILE: {e}")
+                        return
+
+                for msg in msgs:
+                    try:
+                        title = msg.get("title")
+                        size = get_size(int(msg.get("size", 0)))
+                        f_caption = msg.get("caption", "")
+                        
+                        if BATCH_FILE_CAPTION:
+                            try:
+                                f_caption = BATCH_FILE_CAPTION.format(
+                                    file_name='' if title is None else title, 
+                                    file_size='' if size is None else size, 
+                                    file_caption='' if f_caption is None else f_caption
+                                )
+                            except Exception as e:
+                                logger.exception(e)
+                                f_caption = f_caption
+                        
+                        if f_caption is None:
+                            f_caption = f"{title}"
+                            
+                        try:
+                            m = await client.send_cached_media(
+                                chat_id=message.from_user.id,
+                                file_id=msg.get("file_id"),
+                                caption=f_caption,
+                                protect_content=msg.get('protect', False),
+                            )
+                            k = await message.reply_text("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>30 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
+                            await asyncio.sleep(1800)
+                            try:
+                                await m.delete()
+                            except Exception as e:
+                                logger.error(f"Error deleting message: {e}")
+                            GET = [[InlineKeyboardButton("✅ ɢᴇᴛ ғɪʟᴇ ᴀɢᴀɪɴ ✅", callback_data=f'del#{file_id}')]]
+                            await k.edit("<b>Your File/Video is successfully deleted!!!</b>", reply_markup=InlineKeyboardMarkup(GET))
+                            return
+                        except FloodWait as e:
+                            await asyncio.sleep(e.x)
+                            logger.warning(f"Floodwait of {e.x} sec.")
+                            try:
+                                m = await client.send_cached_media(
+                                    chat_id=message.from_user.id,
+                                    file_id=msg.get("file_id"),
+                                    caption=f_caption,
+                                    protect_content=msg.get('protect', False),
+                                )
+                                k = await message.reply_text("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>30 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
+                                await asyncio.sleep(1800)
+                                try:
+                                    await m.delete()
+                                except Exception as e:
+                                    logger.error(f"Error deleting message: {e}")
+                                GET = [[InlineKeyboardButton("✅ ɢᴇᴛ ғɪʟᴇ ᴀɢᴀɪɴ ✅", callback_data=f'del#{file_id}')]]
+                                await k.edit("<b>Your File/Video is successfully deleted!!!</b>", reply_markup=InlineKeyboardMarkup(GET))
+                                return
+                            except Exception as e:
+                                logger.error(f"Error sending cached media after FloodWait: {e}")
+                                continue
+                        except Exception as e:
+                            logger.warning(f"Error sending cached media: {e}", exc_info=True)
+                            continue
+                        await asyncio.sleep(1) 
+                    except Exception as e:
+                        logger.error(f"Error processing batch message: {e}")
+                        continue
+                        
+                try:
+                    await sts.delete()
+                except Exception as e:
+                    logger.error(f"Error deleting status message: {e}")
+                return
+            except Exception as e:
+                logger.error(f"Error in BATCH processing: {e}")
+                try:
+                    await message.reply_text("An error occurred while processing the batch request.")
+                except Exception:
+                    pass
+                return
+
+        # Handle DSTORE requests
+        elif data.split("-", 1)[0] == "DSTORE":
+            try:
+                sts = await message.reply("Please wait")
+                b_string = data.split("-", 1)[1]
+                decoded = (base64.urlsafe_b64decode(b_string + "=" * (-len(b_string) % 4))).decode("ascii")
+                try:
+                    f_msg_id, l_msg_id, f_chat_id, protect = decoded.split("_", 3)
+                except ValueError:
+                    f_msg_id, l_msg_id, f_chat_id = decoded.split("_", 2)
+                    protect = "/pbatch" if PROTECT_CONTENT else "batch"
+                    
+                diff = int(l_msg_id) - int(f_msg_id)
+                try:
+                    async for msg in client.iter_messages(int(f_chat_id), int(l_msg_id), int(f_msg_id)):
+                        try:
+                            if msg.media:
+                                media = getattr(msg, msg.media)
+                                if BATCH_FILE_CAPTION:
+                                    try:
+                                        f_caption = BATCH_FILE_CAPTION.format(
+                                            file_name=getattr(media, 'file_name', ''), 
+                                            file_size=getattr(media, 'file_size', ''), 
+                                            file_caption=getattr(msg, 'caption', '')
+                                        )
+                                    except Exception as e:
+                                        logger.exception(e)
+                                        f_caption = getattr(msg, 'caption', '')
+                                else:
+                                    media = getattr(msg, msg.media)
+                                    file_name = getattr(media, 'file_name', '')
+                                    f_caption = getattr(msg, 'caption', file_name)
+                                try:
+                                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False)
+                                except FloodWait as e:
+                                    await asyncio.sleep(e.x)
+                                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False)
+                                except Exception as e:
+                                    logger.exception(e)
+                                    continue
+                            elif msg.empty:
+                                continue
+                            else:
+                                try:
+                                    await msg.copy(message.chat.id, protect_content=True if protect == "/pbatch" else False)
+                                except FloodWait as e:
+                                    await asyncio.sleep(e.x)
+                                    await msg.copy(message.chat.id, protect_content=True if protect == "/pbatch" else False)
+                                except Exception as e:
+                                    logger.exception(e)
+                                    continue
+                            await asyncio.sleep(1) 
+                        except Exception as e:
+                            logger.error(f"Error processing DSTORE message: {e}")
+                            continue
+                except Exception as e:
+                    logger.error(f"Error iterating messages for DSTORE: {e}")
+                    
+                try:
+                    await sts.delete()
+                except Exception as e:
+                    logger.error(f"Error deleting DSTORE status message: {e}")
+                return
+            except Exception as e:
+                logger.error(f"Error in DSTORE processing: {e}")
+                try:
+                    await message.reply_text("An error occurred while processing the DSTORE request.")
+                except Exception:
+                    pass
+                return
+            
+        # Check MFT limit first before processing any files
+        try:
+            mft_check = await check_mft(message.from_user.id, message)
+            if not mft_check:
+                return
         except Exception as e:
-            logger.exception(e)
-            f_caption=f_caption
-    if f_caption is None:
-        f_caption = f"{files.file_name}"    
-    try:
-        m=await client.send_cached_media(
-            chat_id=message.from_user.id,
-            file_id=file_id,
-            caption=f_caption,
-            protect_content=True if pre == 'filep' else False,
-            reply_markup=InlineKeyboardMarkup(
-                [
-                    [
-                        InlineKeyboardButton('Uᴘᴅᴀᴛᴇs Cʜᴀɴɴᴇʟ', url=CHNL_LNK)
-                    ]
-                ]
-            ))  
-        await update_mft(message.from_user.id) 
-        k = await message.reply_text("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>30 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
-        await asyncio.sleep(1800)
-        await m.delete()
-        GET = [[InlineKeyboardButton("✅ ɢᴇᴛ ғɪʟᴇ ᴀɢᴀɪɴ ✅", callback_data=f'del#{file_id}')]]
-        await k.edit("<b>Your File/Video is successfully deleted!!!</b>" ,reply_markup=InlineKeyboardMarkup(GET))
+            logger.error(f"Error checking MFT: {e}")
+            # Continue processing if MFT check fails
+
+        # Handle regular file requests
+        try:
+            files_ = await get_file_details(file_id)           
+            if not files_:
+                try:
+                    pre, file_id = ((base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))).decode("ascii")).split("_", 1)
+                    try:
+                        msg = await client.send_cached_media(
+                            chat_id=message.from_user.id,
+                            file_id=file_id,
+                            protect_content=True if pre == 'filep' else False,
+                        )
+                        await update_mft(message.from_user.id)
+                        k = await message.reply_text("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>10 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
+                        await asyncio.sleep(600)
+                        try:
+                            await msg.delete()
+                        except Exception as e:
+                            logger.error(f"Error deleting message: {e}")
+                        GET = [[InlineKeyboardButton("✅ ɢᴇᴛ ғɪʟᴇ ᴀɢᴀɪɴ ✅", callback_data=f'del#{file_id}')]]
+                        await k.edit("<b>Your File/Video is successfully deleted!!!</b>", reply_markup=InlineKeyboardMarkup(GET))
+                        return
+                    except Exception as e:
+                        logger.error(f"Error sending cached media: {e}")
+                        return await message.reply('No such file exist.')
+                except Exception as e:
+                    logger.error(f"Error decoding file data: {e}")
+                    return await message.reply('Invalid file data.')
+            
+            files = files_[0]
+            title = files.file_name
+            size = get_size(files.file_size)
+            f_caption = files.caption
+            
+            if CUSTOM_FILE_CAPTION:
+                try:
+                    f_caption = CUSTOM_FILE_CAPTION.format(
+                        file_name='' if title is None else title, 
+                        file_size='' if size is None else size, 
+                        file_caption='' if f_caption is None else f_caption
+                    )
+                except Exception as e:
+                    logger.exception(e)
+                    f_caption = f_caption
+                    
+            if f_caption is None:
+                f_caption = f"{files.file_name}"    
+                
+            try:
+                m = await client.send_cached_media(
+                    chat_id=message.from_user.id,
+                    file_id=file_id,
+                    caption=f_caption,
+                    protect_content=True if pre == 'filep' else False,
+                    reply_markup=InlineKeyboardMarkup(
+                        [
+                            [
+                                InlineKeyboardButton('Uᴘᴅᴀᴛᴇs Cʜᴀɴɴᴇʟ', url=CHNL_LNK)
+                            ]
+                        ]
+                    ))  
+                await update_mft(message.from_user.id) 
+                k = await message.reply_text("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>30 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
+                await asyncio.sleep(1800)
+                try:
+                    await m.delete()
+                except Exception as e:
+                    logger.error(f"Error deleting message: {e}")
+                GET = [[InlineKeyboardButton("✅ ɢᴇᴛ ғɪʟᴇ ᴀɢᴀɪɴ ✅", callback_data=f'del#{file_id}')]]
+                await k.edit("<b>Your File/Video is successfully deleted!!!</b>", reply_markup=InlineKeyboardMarkup(GET))
+            except Exception as e:
+                logger.error(f"Error sending file: {e}")
+                await message.reply(f"An error occurred: {str(e)}")
+                return
+        except Exception as e:
+            logger.error(f"Error processing file request: {e}")
+            await message.reply("An error occurred while processing your file request.")
+            
     except Exception as e:
-        await message.reply(str(e))
-        return
+        logger.error(f"Unexpected error in start function: {e}")
+        try:
+            await message.reply("An unexpected error occurred. Please try again later.")
+        except Exception:
+            pass        
 
 
 @Client.on_message(filters.command('channel') & filters.user(ADMINS))
