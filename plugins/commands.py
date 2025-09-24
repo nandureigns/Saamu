@@ -42,7 +42,7 @@ async def check_mft(user_id, message):
         doc = await self.mft.find_one({"user_id": user_id, "date": today})
         count = doc.get("count", 0) if doc else 0
 
-        if count >= 20:
+        if count >= 15:
             await message.reply_text(
                 "⚠️ You have reached today's limit of 20 files.\n\nPlease try again tomorrow ✅"
             )
