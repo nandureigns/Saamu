@@ -72,8 +72,38 @@ async def start(client, message):
     try:
         # Handle group/supergroup messages
         if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
-            # ... [group handling code remains the same] ...
-            return
+        if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
+            try:
+                buttons = [[
+                InlineKeyboardButton("✨ 𝗔𝗱𝗱 𝗠𝗲 𝗧𝗼 𝗬𝗼𝘂𝗿 𝗚𝗿𝗼𝘂𝗽 ✨", url=f"https://t.me/{temp.U_NAME}?startgroup=true"),
+                ],[
+                InlineKeyboardButton("🔍 𝗦𝗲𝗮𝗿𝗰𝗵 𝗛𝗲𝗿𝗲", switch_inline_query_current_chat=''),
+                InlineKeyboardButton("📖 𝗛𝗲𝗹𝗽", callback_data="help"),
+                ],[
+                InlineKeyboardButton("🌟 𝗔𝗯𝗼𝘂𝘁 𝗠𝗲", callback_data="about"),
+                InlineKeyboardButton("❤️ 𝗦𝘂𝗽𝗽𝗼𝗿𝘁 / 𝗗𝗼𝗻𝗮𝘁𝗲", callback_data="donate"),
+                ]]
+                reply_markup = InlineKeyboardMarkup(buttons)
+                await message.reply_photo(
+                    photo=random.choice(PICS),
+                    caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
+                    reply_markup=reply_markup,
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                # Check if chat exists in database
+                try:
+                    if not await db.get_chat(message.chat.id):
+                        total = await client.get_chat_members_count(message.chat.id)
+                        await client.send_message(LOG_CHANNEL, script.LOG_TEXT_G.format(message.chat.title, message.chat.id, total, "Unknown"))       
+                        await db.add_chat(message.chat.id, message.chat.title)
+                except Exception as e:
+                    logger.error(f"Error handling chat database operations: {e}")
+                    
+                return 
+            except Exception as e:
+                logger.error(f"Error handling group message: {e}")
+                return
 
         # Handle private messages - check if user exists
         try:
@@ -85,32 +115,89 @@ async def start(client, message):
 
         # Handle start command without parameters
         if len(message.command) != 2:
-            # ... [show start buttons - no MFT check needed] ...
-            return
+            try:
+                buttons = [[
+                InlineKeyboardButton("✨ 𝗔𝗱𝗱 𝗠𝗲 𝗧𝗼 𝗬𝗼𝘂𝗿 𝗚𝗿𝗼𝘂𝗽 ✨", url=f"https://t.me/{temp.U_NAME}?startgroup=true"),
+                ],[
+                InlineKeyboardButton("🔍 𝗦𝗲𝗮𝗿𝗰𝗵 𝗛𝗲𝗿𝗲", switch_inline_query_current_chat=''),
+                InlineKeyboardButton("📖 𝗛𝗲𝗹𝗽", callback_data="help"),
+                ],[
+                InlineKeyboardButton("🌟 𝗔𝗯𝗼𝘂𝘁 𝗠𝗲", callback_data="about"),
+                InlineKeyboardButton("❤️ 𝗦𝘂𝗽𝗽𝗼𝗿𝘁 / 𝗗𝗼𝗻𝗮𝘁𝗲", callback_data="donate"),
+                ]]
+                reply_markup = InlineKeyboardMarkup(buttons)
+                await message.reply_photo(
+                    photo=random.choice(PICS),
+                    caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
+                    reply_markup=reply_markup,
+                    parse_mode=enums.ParseMode.HTML
+                )
+                return
+            except Exception as e:
+                logger.error(f"Error sending start message: {e}")
+                await message.reply_text("Sorry, an error occurred while processing your request.")
+                return
 
         # Check subscription status
         try:
             invite_links = await is_subscribed(client, query=message)
             if AUTH_CHANNEL and len(invite_links) >= 1:
-                # ... [subscription check code] ...
+                btn = []
+                for chnl_num, link in enumerate(invite_links, start=1):
+                    if chnl_num == 1:
+                        channel_num = "1sᴛ"
+                    elif chnl_num == 2:
+                        channel_num = "2ɴᴅ"
+                    elif chnl_num == 3:
+                        channel_num = "3ʀᴅ"
+                    else:
+                        channel_num = str(chnl_num)+"ᴛʜ"
+                    btn.append([
+                        InlineKeyboardButton(f"❆ Jᴏɪɴ Cʜᴀɴɴᴇʟ {channel_num} ❆", url=link)
+                    ])
+
+                if message.command[1] != "subscribe":
+                    try:
+                        kk, file_id = message.command[1].split("_", 1)
+                        pre = 'checksubp' if kk == 'filep' else 'checksub' 
+                        btn.append([InlineKeyboardButton("↻ Tʀʏ Aɢᴀɪɴ", callback_data=f"{pre}#{file_id}")])
+                    except (IndexError, ValueError):
+                        btn.append([InlineKeyboardButton("↻ Tʀʏ Aɢᴀɪɴ", url=f"https://t.me/{temp.U_NAME}?start={message.command[1]}")])
+                
+                await client.send_message(
+                    chat_id=message.from_user.id,
+                    text="**Yᴏᴜ ᴀʀᴇ ɴᴏᴛ ɪɴ ᴏᴜʀ Bᴀᴄᴋ-ᴜᴘ ᴄʜᴀɴɴᴇʟs ɢɪᴠᴇɴ ʙᴇʟᴏᴡ sᴏ ʏᴏᴜ ᴅᴏɴ'ᴛ ɢᴇᴛ ᴛʜᴇ ᴍᴏᴠɪᴇ ғɪʟᴇ...\n\nIғ ʏᴏᴜ ᴡᴀɴᴛ ᴛʜᴇ ᴍᴏᴠɪᴇ ғɪʟᴇ, ᴄʟɪᴄᴋ ᴏɴ ᴛʜᴇ ɢɪᴠᴇɴ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴀɴᴅ ᴊᴏɪɴ ᴏᴜʀ ʙᴀᴄᴋ-ᴜᴘ ᴄʜᴀɴɴᴇʟs, ᴛʜᴇɴ ᴄʟɪᴄᴋ ᴏɴ ᴛʜᴇ '↻ Tʀʏ Aɢᴀɪɴ' ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ...\n\nTʜᴇɴ ʏᴏᴜ ᴡɪʟʟ ɢᴇᴛ ᴛʜᴇ ᴍᴏᴠɪᴇ ғɪʟᴇs...**",
+                    reply_markup=InlineKeyboardMarkup(btn),
+                    parse_mode=enums.ParseMode.MARKDOWN
+                )
                 return
         except Exception as e:
             logger.error(f"Error checking subscription status: {e}")
 
-        # Handle special commands (no file delivery)
+        # Handle special commands
         if len(message.command) == 2 and message.command[1] in ["subscribe", "error", "okay", "help"]:
-            # ... [special command handling - no MFT check needed] ...
-            return
-
-        # ==========================================
-        # CHECK MFT LIMIT BEFORE ANY FILE DELIVERY
-        # ==========================================
-        try:
-            mft_check = await check_mft(db.mft, message.from_user.id, message)
-            if not mft_check:
+            try:
+                buttons = [[
+                InlineKeyboardButton("✨ 𝗔𝗱𝗱 𝗠𝗲 𝗧𝗼 𝗬𝗼𝘂𝗿 𝗚𝗿𝗼𝘂𝗽 ✨", url=f"https://t.me/{temp.U_NAME}?startgroup=true"),
+                ],[
+                InlineKeyboardButton("🔍 𝗦𝗲𝗮𝗿𝗰𝗵 𝗛𝗲𝗿𝗲", switch_inline_query_current_chat=''),
+                InlineKeyboardButton("📖 𝗛𝗲𝗹𝗽", callback_data="help"),
+                ],[
+                InlineKeyboardButton("🌟 𝗔𝗯𝗼𝘂𝘁 𝗠𝗲", callback_data="about"),
+                InlineKeyboardButton("❤️ 𝗦𝘂𝗽𝗽𝗼𝗿𝘁 / 𝗗𝗼𝗻𝗮𝘁𝗲", callback_data="donate"),
+                ]]
+                reply_markup = InlineKeyboardMarkup(buttons)
+                await message.reply_photo(
+                    photo=random.choice(PICS),
+                    caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
+                    reply_markup=reply_markup,
+                    parse_mode=enums.ParseMode.HTML
+                )
                 return
-        except Exception as e:
-            logger.error(f"Error checking MFT: {e}")
+            except Exception as e:
+                logger.error(f"Error handling special commands: {e}")
+                await message.reply_text("Sorry, an error occurred while processing your request.")
+                return
 
         data = message.command[1]
         try:
