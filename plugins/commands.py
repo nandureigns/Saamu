@@ -72,7 +72,6 @@ async def start(client, message):
     try:
         # Handle group/supergroup messages
         if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
-        if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
             try:
                 buttons = [[
                 InlineKeyboardButton("✨ 𝗔𝗱𝗱 𝗠𝗲 𝗧𝗼 𝗬𝗼𝘂𝗿 𝗚𝗿𝗼𝘂𝗽 ✨", url=f"https://t.me/{temp.U_NAME}?startgroup=true"),
@@ -137,7 +136,6 @@ async def start(client, message):
                 logger.error(f"Error sending start message: {e}")
                 await message.reply_text("Sorry, an error occurred while processing your request.")
                 return
-
         # Check subscription status
         try:
             invite_links = await is_subscribed(client, query=message)
