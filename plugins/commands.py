@@ -197,6 +197,16 @@ async def start(client, message):
                 await message.reply_text("Sorry, an error occurred while processing your request.")
                 return
 
+        # ==========================================
+        # CHECK MFT LIMIT BEFORE ANY FILE DELIVERY
+        # ==========================================
+        try:
+            mft_check = await check_mft(db.mft, message.from_user.id, message)
+            if not mft_check:
+                return
+        except Exception as e:
+            logger.error(f"Error checking MFT: {e}")
+
         data = message.command[1]
         try:
             pre, file_id = data.split('_', 1)
