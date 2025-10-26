@@ -874,7 +874,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
         await client.edit_message_media(
             query.message.chat.id, 
             query.message.id, 
-            InputMediaPhoto("https://envs.sh/uSl.jpg")
+            InputMediaPhoto("https://envs.sh/3Gv.jpg")
         )
         reply_markup = InlineKeyboardMarkup(btn)
         await query.message.edit_text(
