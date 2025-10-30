@@ -400,7 +400,7 @@ async def advantage_spoll_choker(bot, query):
         if NO_RESULTS_MSG:
             await bot.send_message(chat_id=LOG_CHANNEL,text=script.NORSLTS.format(reqstr.id, reqstr.mention, movie))
         contact_admin_button = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔰Cʟɪᴄᴋ ʜᴇʀᴇ & ʀᴇǫᴜᴇsᴛ ᴛᴏ ᴀᴅᴍɪɴ🔰", url=f'https://t.me/NANDAN_REIGNS')]])
+            [[InlineKeyboardButton("🔰Cʟɪᴄᴋ ʜᴇʀᴇ & ʀᴇǫᴜᴇsᴛ ᴛᴏ ᴀᴅᴍɪɴ🔰", url=f'https://t.me/Kn_MovieRequest_bot')]])
         k = await query.message.edit(script.MVE_NT_FND,reply_markup=contact_admin_button)
         await asyncio.sleep(10)
         await k.delete()
@@ -822,13 +822,13 @@ async def cb_handler(client: Client, query: CallbackQuery):
 
     elif query.data == "start":
         buttons = [[
-        InlineKeyboardButton("✨ 𝗔𝗱𝗱 𝗠𝗲 𝗧𝗼 𝗬𝗼𝘂𝗿 𝗚𝗿𝗼𝘂𝗽 ✨", url=f"https://t.me/{temp.U_NAME}?startgroup=true"),
+        InlineKeyboardButton(" + Aᴅᴅ Mᴇ Tᴏ Yᴏᴜʀ Cʜᴀᴛ + ", url=f"https://t.me/{temp.U_NAME}?startgroup=true"),
         ],[
-        InlineKeyboardButton("🔍 𝗦𝗲𝗮𝗿𝗰𝗵 𝗛𝗲𝗿𝗲", switch_inline_query_current_chat=''),
-        InlineKeyboardButton("📖 𝗛𝗲𝗹𝗽", callback_data="help"),
+        InlineKeyboardButton("🔎 Sᴇᴀʀᴄʜ", switch_inline_query_current_chat=''),
+        InlineKeyboardButton("Hᴇʟᴩ 🕸️", callback_data="help"),
         ],[
-        InlineKeyboardButton("🌟 𝗔𝗯𝗼𝘂𝘁 𝗠𝗲", callback_data="about"),
-        InlineKeyboardButton("❤️ 𝗦𝘂𝗽𝗽𝗼𝗿𝘁 / 𝗗𝗼𝗻𝗮𝘁𝗲", callback_data="donate"),
+        InlineKeyboardButton("Aʙᴏᴜᴛ ✨", callback_data="about"),
+        InlineKeyboardButton("Dᴏɴᴀᴛᴇ Uꜱ❤️‍🩹", callback_data="donate"),
         ]]
         reply_markup = InlineKeyboardMarkup(buttons)
         await query.message.edit_text(
