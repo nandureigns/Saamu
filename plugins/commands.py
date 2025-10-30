@@ -45,7 +45,8 @@ async def check_mft(mft_collection, user_id, message):
         # Fixed: Changed limit to 20 to match error message
         if count >= 10:
             await message.reply_text(
-                "⚠️ You have Reached Today's limit of 10 files.\n\nPlease try again Tomorrow ✅"
+                "⚠️ You have Reached Today's limit of 10 files🥲.\n\nPlease try again Tomorrow😁✅
+                ನೀವು ಇಂದಿನ 10 ಫೈಲ್‌ಗಳ ಮಿತಿಯನ್ನು ತಲುಪಿರುವಿರಿ🥲.\n\nದಯವಿಟ್ಟು ನಾಳೆ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ😁✅"
             )
             return False
         return True
